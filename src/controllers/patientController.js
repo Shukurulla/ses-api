@@ -319,22 +319,47 @@ exports.addContact = async (req, res) => {
 // @access  Private
 exports.getStats = async (req, res) => {
   try {
-    const totalPatients = await Patient.countDocuments();
-    const activePatients = await Patient.countDocuments({ status: 'davolanmoqda' });
-    const recoveredPatients = await Patient.countDocuments({ status: 'tuzalgan' });
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // Faol holatlar (tasdiqlangan va davolanmoqda)
+    const activeCases = await Patient.countDocuments({
+      status: { $in: ['tasdiqlangan', 'davolanmoqda'] }
+    });
+
+    // Bugungi yangi holatlar
+    const newCasesToday = await Patient.countDocuments({
+      createdAt: { $gte: today }
+    });
 
     // Oxirgi 7 kun
     const last7Days = new Date();
     last7Days.setDate(last7Days.getDate() - 7);
-    const newPatientsWeek = await Patient.countDocuments({
+    const newCasesWeek = await Patient.countDocuments({
       createdAt: { $gte: last7Days }
     });
 
     // Oxirgi 30 kun
     const last30Days = new Date();
     last30Days.setDate(last30Days.getDate() - 30);
-    const newPatientsMonth = await Patient.countDocuments({
+    const newCasesMonth = await Patient.countDocuments({
       createdAt: { $gte: last30Days }
+    });
+
+    // Kuzatuv ostidagi kontaktlar
+    const contactsUnderObservation = await Patient.aggregate([
+      { $unwind: { path: '$contacts', preserveNullAndEmptyArrays: false } },
+      { $match: { 'contacts.status': 'kuzatuv ostida' } },
+      { $count: 'total' }
+    ]);
+
+    // Sog'ayganlar
+    const recovered = await Patient.countDocuments({ status: 'tuzalgan' });
+
+    // Faol o'choqlar (Investigation modelidan)
+    const Investigation = require('../models/Investigation');
+    const activeOutbreaks = await Investigation.countDocuments({
+      status: { $in: ['yangi', 'jarayonda'] }
     });
 
     // Kasalliklar bo'yicha statistika
@@ -343,6 +368,13 @@ exports.getStats = async (req, res) => {
       { $sort: { count: -1 } },
       { $limit: 10 }
     ]);
+
+    // Frontend uchun topDiseases formatini yaratish
+    const topDiseases = diseaseStats.map(stat => ({
+      _id: stat._id,
+      name: stat._id,
+      count: stat.count
+    }));
 
     // Yosh guruhlari bo'yicha
     const ageStats = await Patient.aggregate([
@@ -356,15 +388,21 @@ exports.getStats = async (req, res) => {
       }
     ]);
 
+    // Jami bemorlar
+    const totalPatients = await Patient.countDocuments();
+
     res.status(200).json({
       success: true,
       data: {
+        activeCases,
+        newCasesToday,
+        newCasesWeek,
+        newCasesMonth,
+        contactsUnderObservation: contactsUnderObservation.length > 0 ? contactsUnderObservation[0].total : 0,
+        recovered,
+        activeOutbreaks,
+        topDiseases,
         totalPatients,
-        activePatients,
-        recoveredPatients,
-        newPatientsWeek,
-        newPatientsMonth,
-        diseaseStats,
         ageStats
       }
     });

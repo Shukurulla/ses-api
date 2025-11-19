@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "seed": "node src/utils/seeder.js",
+    "seed": "node src/seed/seedDatabase.js",
+    "seed:delete": "node src/seed/seedDatabase.js --delete",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
