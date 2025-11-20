@@ -37,7 +37,6 @@ exports.getAllKartas = async (req, res) => {
     const kartas = await Karta.find(filter)
       .populate('forma60', 'fullName birthDate primaryDiagnosis finalDiagnosis')
       .populate('createdBy', 'fullName email role')
-      .populate('verifiedBy', 'fullName email')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -69,7 +68,6 @@ exports.getKartaById = async (req, res) => {
     const karta = await Karta.findById(req.params.id)
       .populate('forma60')
       .populate('createdBy', 'fullName email role')
-      .populate('verifiedBy', 'fullName email')
       .populate('editHistory.editedBy', 'fullName email');
 
     if (!karta) {
@@ -304,8 +302,7 @@ exports.updateKarta = async (req, res) => {
         runValidators: true
       }
     ).populate('forma60')
-     .populate('createdBy', 'fullName email')
-     .populate('verifiedBy', 'fullName email');
+     .populate('createdBy', 'fullName email');
 
     res.status(200).json({
       success: true,
@@ -326,20 +323,14 @@ exports.updateKarta = async (req, res) => {
 // @access  Private (Karta filler, Admin)
 exports.verifyKarta = async (req, res) => {
   try {
-    const { verificationNotes } = req.body;
-
     const karta = await Karta.findByIdAndUpdate(
       req.params.id,
       {
-        status: 'verified',
-        verifiedBy: req.user._id,
-        verifiedAt: new Date(),
-        verificationNotes: verificationNotes,
         updatedBy: req.user._id
       },
       { new: true }
     ).populate('forma60')
-     .populate('verifiedBy', 'fullName email');
+     .populate('createdBy', 'fullName email');
 
     if (!karta) {
       return res.status(404).json({
