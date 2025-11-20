@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 // Model
 const District = require('../src/models/District');
@@ -14,8 +14,12 @@ async function seedDistricts() {
     console.log('✓ MongoDB ga muvaffaqiyatli ulandi\n');
 
     // JSON faylni o'qish
-    const jsonPath = path.join(__dirname, '..', 'nukus_districts.json');
+    const jsonPath = path.join(__dirname, '../../nukus_districts.json');
     console.log('JSON fayl o\'qilmoqda:', jsonPath);
+
+    if (!fs.existsSync(jsonPath)) {
+      throw new Error(`JSON fayl topilmadi: ${jsonPath}`);
+    }
 
     const jsonData = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
     console.log(`✓ ${jsonData.length} ta mahalla ma'lumoti o'qildi\n`);
@@ -57,10 +61,19 @@ async function seedDistricts() {
     console.log('\n✓ Ma\'lumotlar muvaffaqiyatli yuklandi!');
 
   } catch (error) {
-    console.error('❌ Xatolik yuz berdi:', error.message);
-    if (error.stack) {
-      console.error(error.stack);
+    console.error('\n❌ Xatolik yuz berdi:');
+    console.error('   Xato:', error.message);
+
+    if (error.code === 'ENOENT') {
+      console.error('\n   JSON fayl topilmadi!');
+      console.error('   Tekshiring: nukus_districts.json fayli ses-api papkasining yuqori katalogida mavjudmi?');
     }
+
+    if (error.name === 'MongoServerError' || error.name === 'MongooseServerSelectionError') {
+      console.error('\n   MongoDB bilan bog\'lanishda xatolik!');
+      console.error('   .env faylidagi MONGODB_URI ni tekshiring');
+    }
+
     process.exit(1);
   } finally {
     // MongoDB connection ni yopish
@@ -71,4 +84,10 @@ async function seedDistricts() {
 }
 
 // Scriptni ishga tushirish
+console.log('');
+console.log('╔═══════════════════════════════════════╗');
+console.log('║   MAHALLALARNI YUKLASH (SEED)         ║');
+console.log('╚═══════════════════════════════════════╝');
+console.log('');
+
 seedDistricts();
