@@ -165,6 +165,11 @@ exports.createForma60 = async (req, res) => {
 
     const forma60 = await Forma60.create(req.body);
 
+    // Agar assignedToCardFiller kiritilgan bo'lsa, status avtomatik 'karta_toldirishda' ga o'tkazish
+    if (req.body.assignedToCardFiller) {
+      forma60.status = 'karta_toldirishda';
+    }
+
     // History ga created action qo'shish
     forma60.editHistory.push({
       editedBy: req.user._id,
