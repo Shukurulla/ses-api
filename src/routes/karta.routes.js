@@ -40,8 +40,8 @@ router.get('/stats', authorize('admin', 'karta_filler'), getKartaStats);
 // My assigned Kartas (Karta filler)
 router.get('/assigned-to-me', isKartaFiller, getMyAssignedKartas);
 
-// Get all Kartas (Admin, Karta filler)
-router.get('/', authorize('admin', 'karta_filler'), getAllKartas);
+// Get all Kartas (All authenticated users can view)
+router.get('/', getAllKartas);
 
 // Get Kartas by Forma60 ID
 router.get('/forma60/:forma60Id', getKartasByForma60);
