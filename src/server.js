@@ -11,13 +11,11 @@ dotenv.config();
 connectDB();
 
 // Route files
-const authRoutes = require("./routes/authRoutes");
-const patientRoutes = require("./routes/patientRoutes");
-const districtRoutes = require("./routes/districtRoutes");
-const clinicRoutes = require("./routes/clinicRoutes");
-const investigationRoutes = require("./routes/investigationRoutes");
-const disinfectionRoutes = require("./routes/disinfectionRoutes");
-const reportRoutes = require("./routes/reportRoutes");
+const authRoutes = require("./routes/auth.routes");
+const forma60Routes = require("./routes/forma60.routes");
+const kartaRoutes = require("./routes/karta.routes");
+const dezinfeksiyaRoutes = require("./routes/dezinfeksiya.routes");
+const districtRoutes = require("./routes/district.routes");
 
 const app = express();
 
@@ -26,7 +24,11 @@ const corsOptions = {
   origin: [
     "http://localhost:5173",
     "http://localhost:5174",
+    "http://localhost:5175",
+    "http://localhost:5176",
+    "http://localhost:5177",
     "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
     "https://ses-beta.vercel.app",
   ],
   credentials: true,
@@ -45,12 +47,10 @@ app.use(express.urlencoded({ extended: true }));
 
 // Mount routers
 app.use("/api/auth", authRoutes);
-app.use("/api/patients", patientRoutes);
+app.use("/api/forma60", forma60Routes);
+app.use("/api/karta", kartaRoutes);
+app.use("/api/dezinfeksiya", dezinfeksiyaRoutes);
 app.use("/api/districts", districtRoutes);
-app.use("/api/clinics", clinicRoutes);
-app.use("/api/investigations", investigationRoutes);
-app.use("/api/disinfections", disinfectionRoutes);
-app.use("/api/reports", reportRoutes);
 
 // Health check
 app.get("/health", (req, res) => {

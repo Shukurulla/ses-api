@@ -1,11 +1,23 @@
 const mongoose = require('mongoose');
+const fs = require('fs');
+const path = require('path');
+
+// nukus_districts.json faylidan mahallalarni o'qish
+const districtData = JSON.parse(
+  fs.readFileSync(path.join(__dirname, '../../nukus_districts.json'), 'utf-8')
+);
+
+// Faqat "Нукус шаҳар" region'iga tegishli mahallalarni olish
+const nukusNeighborhoods = districtData
+  .filter(d => d.region === 'Нукус шаҳар')
+  .map(d => d.name.trim());
 
 // Nukus tumanlari va mahallalari
 const districts = [
-  { name: '1-tumоn', neighborhoods: ['Amu daryo', 'Amudaryo 2', 'Xo\'jayli', 'Katta ovul'] },
-  { name: '2-tumоn', neighborhoods: ['Mashxurbek', 'Nurli yo\'l', 'Baxt', 'Guliston'] },
-  { name: '3-tumоn', neighborhoods: ['Navruz', 'Oq yo\'l', 'Yangi hayot', 'Samarkand'] },
-  { name: '4-tumоn', neighborhoods: ['Turon', 'Gulshan', 'Mustaqillik', 'Yoshlik'] },
+  {
+    name: 'Nukus shahri',
+    neighborhoods: nukusNeighborhoods
+  }
 ];
 
 // Ism-familiyalar
@@ -30,16 +42,27 @@ const randomDate = (start, end) => {
   return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
 };
 
+// ses_database.json faylidan poliklinikalarni o'qish
+const sesDatabaseData = JSON.parse(
+  fs.readFileSync(path.join(__dirname, '../../ses_database.json'), 'utf-8')
+);
+
+// Faqat "Поликлиника" institution_type'ga ega bo'lganlarni olish
+const polyclinics = sesDatabaseData
+  .filter(item => item.institution_type === 'Поликлиника')
+  .map(item => ({
+    institutionName: item.institution_name,
+    institutionType: item.institution_type,
+    address: item.address,
+    landmark: item.landmark,
+    phone: item.phone_number ? `+${item.phone_number}` : null,
+    fullName: item.full_name,
+    username: item.username,
+    telegramId: item.telegram_id ? String(item.telegram_id) : null
+  }));
+
 // Poliklinikalar
-const clinics = [
-  { institutionName: '1-sonli Shahar Poliklinikasi', institutionType: 'Поликлиника', address: 'Nukus, Pushkin ko\'chasi 12', phone: '+998 61 222-33-44' },
-  { institutionName: '2-sonli Shahar Poliklinikasi', institutionType: 'Поликлиника', address: 'Nukus, Doslik ko\'chasi 45', phone: '+998 61 223-44-55' },
-  { institutionName: '3-sonli Shahar Poliklinikasi', institutionType: 'Поликлиника', address: 'Nukus, Amir Temur ko\'chasi 78', phone: '+998 61 224-55-66' },
-  { institutionName: 'Karakalpak Davlat Universiteti', institutionType: 'Университет', address: 'Nukus, Ch.Abdirov ko\'chasi 1', phone: '+998 61 225-66-77' },
-  { institutionName: '15-sonli O\'rta maktab', institutionType: 'Школа', address: 'Nukus, Mustaqillik ko\'chasi 23', phone: '+998 61 226-77-88' },
-  { institutionName: 'Bolajon bog\'chasi', institutionType: 'Десткий сад', address: 'Nukus, Gagarin ko\'chasi 34', phone: '+998 61 227-88-99' },
-  { institutionName: 'Tibbiyot Kolleji', institutionType: 'Техникум / Колледж', address: 'Nukus, Lenin ko\'chasi 56', phone: '+998 61 228-99-00' },
-];
+const clinics = polyclinics;
 
 // Bemorlar uchun ma'lumotlar
 const generatePatients = (count, userIds) => {
@@ -47,8 +70,8 @@ const generatePatients = (count, userIds) => {
   const now = new Date();
 
   for (let i = 0; i < count; i++) {
-    const district = districts[Math.floor(Math.random() * districts.length)];
-    const neighborhood = district.neighborhoods[Math.floor(Math.random() * district.neighborhoods.length)];
+    // Tasodifiy mahalla tanlash (barcha mahallalardan)
+    const neighborhood = nukusNeighborhoods[Math.floor(Math.random() * nukusNeighborhoods.length)];
     const birthDate = randomDate(new Date(1950, 0, 1), new Date(2010, 11, 31));
     const illnessDate = randomDate(new Date(now.getFullYear() - 1, 0, 1), now);
 
@@ -57,9 +80,9 @@ const generatePatients = (count, userIds) => {
       gender: Math.random() > 0.5 ? 'erkak' : 'ayol',
       birthDate,
       phone: generatePhone(),
-      district: district.name,
+      district: 'Nukus shahri',
       neighborhood,
-      registrationAddress: `Nukus, ${district.name}, ${neighborhood} MFY, ${Math.floor(Math.random() * 100) + 1}-uy`,
+      registrationAddress: `Nukus, ${neighborhood} MFY, ${Math.floor(Math.random() * 100) + 1}-uy`,
       workplace: Math.random() > 0.3 ? {
         name: `${['Savdo', 'Qurilish', 'Pedagogika', 'Sog\'liqni saqlash'][Math.floor(Math.random() * 4)]} korxonasi`,
         address: `Nukus, ${Math.floor(Math.random() * 100) + 1}-ko\'cha`,
@@ -118,7 +141,7 @@ const generatePatients = (count, userIds) => {
       contacts: Math.random() > 0.5 ? [{
         fullName: names[Math.floor(Math.random() * names.length)],
         phone: generatePhone(),
-        address: `Nukus, ${district.name}`,
+        address: `Nukus, ${neighborhood} MFY`,
         contactLevel: ['oila', 'hamkasblar', 'do\'stlar'][Math.floor(Math.random() * 3)],
         contactDate: randomDate(illnessDate, now),
         status: ['kuzatuv ostida', 'sog\'lom'][Math.floor(Math.random() * 2)]
@@ -142,7 +165,7 @@ const generateInvestigations = (count, userIds, patientIds) => {
   const now = new Date();
 
   for (let i = 0; i < count; i++) {
-    const district = districts[Math.floor(Math.random() * districts.length)];
+    const neighborhood = nukusNeighborhoods[Math.floor(Math.random() * nukusNeighborhoods.length)];
     const startDate = randomDate(new Date(now.getFullYear() - 1, 0, 1), now);
     const statusValue = ['yangi', 'jarayonda', 'tugatilgan'][Math.floor(Math.random() * 3)];
 
@@ -152,7 +175,7 @@ const generateInvestigations = (count, userIds, patientIds) => {
       startDate,
       endDate: statusValue === 'tugatilgan' ? randomDate(startDate, now) : undefined,
       status: statusValue,
-      location: `${district.name}, ${district.neighborhoods[0]} MFY`,
+      location: `Nukus shahri, ${neighborhood} MFY`,
       coordinates: {
         lat: 42.4500 + (Math.random() - 0.5) * 0.1,
         lng: 59.6100 + (Math.random() - 0.5) * 0.1
@@ -185,13 +208,13 @@ const generateDisinfections = (count, userIds, patientIds) => {
   const now = new Date();
 
   for (let i = 0; i < count; i++) {
-    const district = districts[Math.floor(Math.random() * districts.length)];
+    const neighborhood = nukusNeighborhoods[Math.floor(Math.random() * nukusNeighborhoods.length)];
     const assignedDate = randomDate(new Date(now.getFullYear() - 1, 0, 1), now);
     const statusValue = ['yangi', 'tayinlangan', 'jarayonda', 'bajarildi'][Math.floor(Math.random() * 4)];
 
     const disinfection = {
       patient: patientIds[Math.floor(Math.random() * patientIds.length)],
-      address: `Nukus, ${district.name}, ${district.neighborhoods[0]} MFY, ${Math.floor(Math.random() * 100) + 1}-uy`,
+      address: `Nukus, ${neighborhood} MFY, ${Math.floor(Math.random() * 100) + 1}-uy`,
       coordinates: {
         lat: 42.4500 + (Math.random() - 0.5) * 0.1,
         lng: 59.6100 + (Math.random() - 0.5) * 0.1
@@ -241,7 +264,7 @@ const generateReports = (count, userIds) => {
         newCases: Math.floor(Math.random() * 20) + 2,
         investigations: Math.floor(Math.random() * 15) + 3,
         disinfections: Math.floor(Math.random() * 30) + 5,
-        districts: districts.map(d => d.name),
+        districts: ['Nukus shahri'],
         diseases: ['Gepatit']
       },
       createdBy: userIds[Math.floor(Math.random() * userIds.length)]
@@ -254,7 +277,7 @@ const generateReports = (count, userIds) => {
 };
 
 module.exports = {
-  districts,
+  nukusNeighborhoods,
   clinics,
   generatePatients,
   generateInvestigations,
