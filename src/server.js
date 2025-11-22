@@ -16,6 +16,12 @@ const forma60Routes = require("./routes/forma60.routes");
 const kartaRoutes = require("./routes/karta.routes");
 const dezinfeksiyaRoutes = require("./routes/dezinfeksiya.routes");
 const districtRoutes = require("./routes/district.routes");
+const nukusLocationRoutes = require("./routes/nukusLocation.routes");
+const contactRoutes = require("./routes/contact.routes");
+const foodInspectionRoutes = require("./routes/foodInspection.routes");
+const reportRoutes = require("./routes/report.routes");
+const mapRoutes = require("./routes/map.routes");
+const statsRoutes = require("./routes/stats.routes");
 
 const app = express();
 
@@ -53,6 +59,12 @@ app.use("/api/forma60", forma60Routes);
 app.use("/api/karta", kartaRoutes);
 app.use("/api/dezinfeksiya", dezinfeksiyaRoutes);
 app.use("/api/districts", districtRoutes);
+app.use("/api/locations", nukusLocationRoutes);
+app.use("/api/contacts", contactRoutes);
+app.use("/api/food-inspection", foodInspectionRoutes);
+app.use("/api/reports", reportRoutes);
+app.use("/api/map", mapRoutes);
+app.use("/api/stats", statsRoutes);
 
 // Health check
 app.get("/health", (req, res) => {

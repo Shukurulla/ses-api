@@ -1,6 +1,7 @@
 const Karta = require('../models/Karta');
 const Forma60 = require('../models/Forma60');
 const { PDFParserManager } = require('../utils/pdfParsers');
+const pdfMapper = require('../services/pdfToForma60Mapper');
 const historyTracker = require('../middlewares/historyTracker');
 const { deleteUploadedFile } = require('../middlewares/upload');
 const path = require('path');
@@ -131,13 +132,35 @@ exports.createKarta = async (req, res) => {
       size: req.file.size
     };
 
-    // Karta yaratish (PDF faqat file sifatida saqlanadi)
+    // PDF ni parse qilish
+    let parsedData = null;
+    const selectedPdfType = pdfType || 'type1';
+
+    try {
+      parsedData = await PDFParserManager.parsePDF(req.file.path, selectedPdfType);
+    } catch (parseError) {
+      console.warn('PDF parse qilishda xatolik:', parseError.message);
+      // Parse qilish xato bo'lsa ham Karta yaratamiz, faqat parsed data bo'lmaydi
+    }
+
+    // Karta yaratish
     const kartaData = {
       forma60: forma60Id,
-      pdfType: pdfType || 'type1',
+      pdfType: selectedPdfType,
       uploadedPdf: pdfFileInfo,
       createdBy: req.user._id
     };
+
+    // Parse qilingan ma'lumotlarni saqlash
+    if (parsedData && parsedData.parsed) {
+      if (selectedPdfType === 'type1') {
+        kartaData.type1Data = parsedData.parsed;
+      } else if (selectedPdfType === 'type2') {
+        kartaData.type2Data = parsedData.parsed;
+      } else if (selectedPdfType === 'type3') {
+        kartaData.type3Data = parsedData.parsed;
+      }
+    }
 
     const karta = await Karta.create(kartaData);
 
@@ -150,8 +173,24 @@ exports.createKarta = async (req, res) => {
 
     await karta.save();
 
+    // PDF dan parse qilingan ma'lumotlarni Forma60 ga qo'shish
+    if (parsedData && parsedData.parsed) {
+      try {
+        if (selectedPdfType === 'type1') {
+          await pdfMapper.mapType1DataToForma60(forma60, parsedData.parsed);
+        } else if (selectedPdfType === 'type2') {
+          await pdfMapper.mapType2DataToForma60(forma60, parsedData.parsed);
+        } else if (selectedPdfType === 'type3') {
+          await pdfMapper.mapType3DataToForma60(forma60, parsedData.parsed);
+        }
+      } catch (mappingError) {
+        console.error('PDF ma\'lumotlarni Forma60 ga mapping qilishda xatolik:', mappingError);
+      }
+    }
+
     // Forma60 statusini yangilash - Karta yaratilgandan keyin tugatilgan statusiga o'tkazish
     forma60.status = 'tugatilgan';
+    forma60.updatedBy = req.user._id;
     await forma60.save();
 
     await karta.populate('forma60', 'fullName birthDate primaryDiagnosis finalDiagnosis');

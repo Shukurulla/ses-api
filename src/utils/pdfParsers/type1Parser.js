@@ -158,9 +158,41 @@ class Type1PDFParser {
   }
 
   static extractContacts(lines, text) {
-    // Bu yerda contacts jadvalidan ma'lumot olish kerak
-    // Hozircha oddiy regex bilan
-    return [];
+    // Kontaktlar jadvalidan ma'lumot olish
+    const contacts = [];
+
+    // "43. Bemor bilan muloqatda bo'lganlar" dan keyingi qismni topish
+    const contactsSection = text.match(/43\..*?Bemor bilan muloqatda.*?44\./s);
+
+    if (contactsSection) {
+      const sectionText = contactsSection[0];
+
+      // Jadval qatorlarini ajratish (F.I.SH | Yoshi | Turar joyi | ...)
+      const rows = sectionText.split('\n').filter(line =>
+        line.trim() &&
+        !line.includes('F.I.SH') &&
+        !line.includes('Ma\'lumot yo\'q') &&
+        !line.includes('44.')
+      );
+
+      // Har bir qatorni parse qilish
+      rows.forEach(row => {
+        // Oddiy regex bilan ma'lumotlarni ajratish
+        const parts = row.split(/\s{2,}/).map(p => p.trim()).filter(p => p);
+
+        if (parts.length >= 3) {
+          contacts.push({
+            fullName: parts[0] || null,
+            age: parseInt(parts[1]) || null,
+            address: parts[2] || null,
+            workCharacter: parts[3] || null,
+            workLocation: parts[3] || null
+          });
+        }
+      });
+    }
+
+    return contacts;
   }
 
   static extractPreventiveMeasures(lines, text) {
@@ -175,6 +207,8 @@ class Type1PDFParser {
   }
 
   static extractConclusion(lines, text) {
+    const mainFactorCode = this.extractField(text, /Kasallik chaqiruvchisini yuqtirishga ehtimol qilingan asosiy faktor\s+(\d{2})/);
+
     return {
       infectionLocation: this.extractField(text, /Kasallik chaqiruvchisini yuqtirishga gumon qilingan joy\s+(.+)/),
       infectionPlace: this.extractField(text, /Kasallikni yuqtirilishi ehtimol qilingan joy\s+(.+)/),
@@ -183,13 +217,46 @@ class Type1PDFParser {
         human: null,
         animal: null
       },
-      mainFactor: this.extractField(text, /Kasallik chaqiruvchisini yuqtirishga ehtimol qilingan asosiy faktor\s+(.+)/),
+      mainFactor: mainFactorCode,
+      mainFactorName: this.translateMainFactor(mainFactorCode),
       diseaseConditions: this.extractField(text, /Kasallikni yuqtirishga sabab bo'lgan sharoitlar\s+(.+)/),
       outbreakCases: {
         home: this.extractField(text, /Turar joyida:\s+(birlamchi|ikkilamchi)/),
         workStudyPlace: this.extractField(text, /Ish, o'qish, tarbiya, dam olish, va davolash joylarida:\s+(birlamchi|ikkilamchi)/)
       }
     };
+  }
+
+  /**
+   * Yuqish omili kodlarini tarjima qilish (01-22)
+   */
+  static translateMainFactor(code) {
+    const factorMap = {
+      '01': 'Aniqlanmadi',
+      '02': 'Vodoprovod suvi',
+      '03': 'Quduq suvi',
+      '04': 'Ochiq suv ombori',
+      '05': 'Kanalizatsiya suvi',
+      '06': 'Har xil ichimlik suvlari, soklar',
+      '07': 'Sut',
+      '08': 'Qaymoq, smetana',
+      '09': 'Tvorog mahsulotlari',
+      '10': 'Boshqa sut mahsulotlari',
+      '11': 'Go\'sht mahsulotlari',
+      '12': 'Baliq mahsulotlari',
+      '13': 'Salatlar',
+      '14': 'Tayyor issiq ovqatlar',
+      '15': 'Boshqa yarim mahsulotlar',
+      '16': 'Meva va sabzavotlar',
+      '17': 'Kontakt yo\'li bilan yuqtirish',
+      '18': 'Havo-tomchi yo\'li bilan',
+      '19': 'Qon, zardob, plazma',
+      '20': 'Hayvon xomashyosi',
+      '21': 'Hayvon o\'tkazuvchilari',
+      '22': 'Boshqa yuqtirish faktorlari'
+    };
+
+    return factorMap[code] || null;
   }
 
   static extractEpidemiologist(text) {

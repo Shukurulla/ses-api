@@ -10,7 +10,14 @@ const userSchema = new mongoose.Schema({
 
   role: {
     type: String,
-    enum: ['admin', 'forma60_filler', 'karta_filler', 'dezinfektor'],
+    enum: [
+      'admin',
+      'forma60_filler',
+      'karta_filler',
+      'dezinfektor',
+      'vrach_yordamchisi',      // Kontaktlarni tekshiruvchi
+      'oziq_ovqat_tekshiruvchi' // Oziq-ovqat tekshiruvchi
+    ],
     required: true
   },
 

@@ -35,8 +35,8 @@ router.use(protect);
 // Statistics (Admin, Forma60 filler)
 router.get('/stats', authorize('admin', 'forma60_filler'), getForma60Stats);
 
-// Assigned Forma60s (for Karta fillers)
-router.get('/assigned-to-me', authorize('karta_filler'), getAssignedForma60s);
+// Assigned Forma60s (for Karta fillers and forma60 fillers)
+router.get('/assigned-to-me', authorize('karta_filler', 'forma60_filler'), getAssignedForma60s);
 
 // Get all Forma60s (Admin, Forma60 filler)
 router.get('/', authorize('admin', 'forma60_filler'), getAllForma60);

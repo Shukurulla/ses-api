@@ -130,6 +130,13 @@ exports.createForma60 = async (req, res) => {
     // Barcha bo'sh stringlarni tozalash
     cleanEmptyFields(req.body);
 
+    // Address location ni o'chirish (agar coordinates yo'q bo'lsa)
+    if (req.body.address && req.body.address.location) {
+      if (!req.body.address.location.coordinates || req.body.address.location.coordinates.length === 0) {
+        delete req.body.address.location;
+      }
+    }
+
     // CreatedBy ni request user dan olish
     req.body.createdBy = req.user._id;
 
@@ -216,6 +223,13 @@ exports.updateForma60 = async (req, res) => {
 
     // Barcha bo'sh stringlarni tozalash
     cleanEmptyFields(req.body);
+
+    // Address location ni o'chirish (agar coordinates yo'q bo'lsa)
+    if (req.body.address && req.body.address.location) {
+      if (!req.body.address.location.coordinates || req.body.address.location.coordinates.length === 0) {
+        delete req.body.address.location;
+      }
+    }
 
     let forma60 = await Forma60.findById(req.params.id);
 
@@ -646,7 +660,7 @@ exports.getAssignedForma60s = async (req, res) => {
     // Faqat karta_toldirishda statusdagi forma60 larni qaytarish
     // tugatilgan statusdagilar ses-karta da ko'rinmasligi kerak
     const forma60s = await Forma60.find({
-      assignedToCardFiller: req.user._id,
+      assignedToCardFillers: req.user._id,
       status: 'karta_toldirishda' // Faqat karta to'ldirishda statusdagilar
     })
       .populate('address.mahalla', 'name region')
