@@ -38,6 +38,7 @@ const allowedOrigins = [
   "http://localhost:5180",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
+  "https://ses-dezinfektor.vercel.app",
   "https://ses-beta.vercel.app",
   "https://ses-forma-60.vercel.app",
   "https://ses-karta.vercel.app",
