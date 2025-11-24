@@ -1,6 +1,9 @@
-const Type1PDFParser = require('./type1Parser');
-const Type2PDFParser = require('./type2Parser');
-const Type3PDFParser = require('./type3Parser');
+// Use Python-based parsers for better PDF extraction
+const {
+  Type1PDFParser,
+  Type2PDFParser,
+  Type3PDFParser
+} = require('./pythonParserBridge');
 
 /**
  * PDF Parser Manager

@@ -9,7 +9,7 @@ const historyTracker = require('../middlewares/historyTracker');
  * Roles.tz talablariga muvofiq CRUD operatsiyalar
  */
 
-// @desc    Barcha Forma60 larni olish
+// @desc    Barcha Forma60 larni olish (pagination bilan)
 // @route   GET /api/forma60
 // @access  Private (Admin, Forma60 filler)
 exports.getAllForma60 = async (req, res) => {
@@ -79,6 +79,35 @@ exports.getAllForma60 = async (req, res) => {
   }
 };
 
+// @desc    BARCHA Forma60 larni olish (limit YO'Q - harita uchun)
+// @route   GET /api/forma60/all
+// @access  Private (Admin)
+exports.getAllForma60ForMap = async (req, res) => {
+  try {
+    const forma60s = await Forma60.find({})
+      .populate('address.mahalla', 'name region')
+      .populate('assignedToCardFiller', 'fullName email role')
+      .populate('createdBy', 'fullName email')
+      .populate('updatedBy', 'fullName email')
+      .sort({ createdAt: -1 });
+
+    const total = await Forma60.countDocuments({});
+
+    res.status(200).json({
+      success: true,
+      count: forma60s.length,
+      total: total,
+      data: forma60s
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server xatosi',
+      error: error.message
+    });
+  }
+};
+
 // @desc    Bitta Forma60 ni olish
 // @route   GET /api/forma60/:id
 // @access  Private
@@ -86,7 +115,8 @@ exports.getForma60ById = async (req, res) => {
   try {
     const forma60 = await Forma60.findById(req.params.id)
       .populate('address.mahalla', 'name region')
-      .populate('assignedToCardFiller', 'fullName email role phone')
+      .populate('assignedToCardFiller', 'fullName email role phoneNumber')
+      .populate('assignedToCardFillers', 'fullName email role phoneNumber')
       .populate('createdBy', 'fullName email')
       .populate('updatedBy', 'fullName email')
       .populate('editHistory.editedBy', 'fullName email');
@@ -185,6 +215,29 @@ exports.createForma60 = async (req, res) => {
     });
 
     await forma60.save();
+
+    // Agar dezinfeksiya kerak bo'lsa, avtomatik Disinfection yozuvi yaratish
+    if (forma60.disinfectionRequired === true) {
+      const Disinfection = require('../models/Disinfection');
+
+      try {
+        await Disinfection.create({
+          forma60: forma60._id,
+          workplace: {
+            name: forma60.workplace?.name || forma60.address?.fullAddress || 'Noma\'lum',
+            address: forma60.workplace?.address || forma60.address?.fullAddress,
+            location: forma60.workplace?.location,
+            lat: forma60.workplace?.osmData?.lat,
+            lon: forma60.workplace?.osmData?.lon
+          },
+          status: 'kerak',
+          createdBy: req.user._id
+        });
+      } catch (disinfectionError) {
+        console.error('Dezinfeksiya yaratishda xatolik:', disinfectionError);
+        // Dezinfeksiya yaratilmasa ham Forma60 yaratilsin
+      }
+    }
 
     // Populat qilib qaytarish
     await forma60.populate('address.mahalla', 'name region');
@@ -657,11 +710,19 @@ exports.assignToCardFiller = async (req, res) => {
 // @access  Private (Karta filler)
 exports.getAssignedForma60s = async (req, res) => {
   try {
-    // Faqat karta_toldirishda statusdagi forma60 larni qaytarish
-    // tugatilgan statusdagilar ses-karta da ko'rinmasligi kerak
+    const Karta = require('../models/Karta');
+
+    // Barcha kartaga ega forma60 ID larini topish
+    const kartas = await Karta.find({ isDeleted: false })
+      .select('forma60')
+      .lean();
+
+    const forma60IdsWithKarta = kartas.map(k => k.forma60.toString());
+
+    // O'ziga biriktirilgan va hali kartasi to'ldirilmagan forma60 larni ko'rsatish
     const forma60s = await Forma60.find({
       assignedToCardFillers: req.user._id,
-      status: 'karta_toldirishda' // Faqat karta to'ldirishda statusdagilar
+      _id: { $nin: forma60IdsWithKarta } // Kartasi bo'lmagan forma60 larni olish
     })
       .populate('address.mahalla', 'name region')
       .populate('createdBy', 'fullName email')

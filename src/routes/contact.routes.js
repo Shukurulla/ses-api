@@ -8,9 +8,9 @@ const { protect, authorize } = require('../middlewares/auth');
  * Vrach yordamchisi uchun - Kontaktlarni tekshirish
  */
 
-// Barcha route'lar authenticate va vrach_yordamchisi yoki admin bo'lishi kerak
+// Barcha route'lar authenticate va vrach_assistant yoki admin bo'lishi kerak
 router.use(protect);
-router.use(authorize('vrach_yordamchisi', 'admin'));
+router.use(authorize('vrach_assistant', 'admin'));
 
 // @route   GET /api/contacts/forma60-list
 // @desc    Kontaktlari bor Forma60 larni olish

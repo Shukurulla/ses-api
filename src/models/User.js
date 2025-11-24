@@ -15,8 +15,8 @@ const userSchema = new mongoose.Schema({
       'forma60_filler',
       'karta_filler',
       'dezinfektor',
-      'vrach_yordamchisi',      // Kontaktlarni tekshiruvchi
-      'oziq_ovqat_tekshiruvchi' // Oziq-ovqat tekshiruvchi
+      'vrach_assistant',        // Vrach yordamchisi
+      'food_inspector'          // Oziq-ovqat tekshiruvchi
     ],
     required: true
   },

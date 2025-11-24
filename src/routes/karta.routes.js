@@ -4,17 +4,14 @@ const {
   getAllKartas,
   getKartaById,
   createKarta,
-  previewPDFData,
-  updateKartaData,
-  verifyKarta,
-  completeKarta,
+  updateKarta,
   deleteKarta,
+  restoreKarta,
   getKartaHistory,
-  downloadPDF,
-  getValidationWarnings,
-  getKartasByForma60,
-  getMyAssignedKartas,
-  getKartaStats
+  getKartaByForma60,
+  getAssignedKartas,
+  getKartaStats,
+  restoreKartaToVersion
 } = require('../controllers/karta.controller');
 
 const {
@@ -24,57 +21,46 @@ const {
   isKartaFiller
 } = require('../middlewares/auth');
 
-const { uploadPDF } = require('../middlewares/upload');
-
 /**
- * Karta Routes
- * Roles.tz talablariga muvofiq: PDF upload, parsing, verification
+ * Karta Routes - TO'LIQ QO'LDA TO'LDIRISH TIZIMI
+ * PDF upload routes olib tashlandi
  */
 
-// Public routes (require authentication only)
+// Barcha routelar authentication talab qiladi
 router.use(protect);
 
-// Statistics (Admin, Karta filler)
-router.get('/stats', authorize('admin', 'karta_filler'), getKartaStats);
+// Statistika (Admin, Karta filler)
+router.get('/stats', authorize('admin', 'karta_filler', 'forma60_filler'), getKartaStats);
 
-// My assigned Kartas (Karta filler)
-router.get('/assigned-to-me', isKartaFiller, getMyAssignedKartas);
+// Menga biriktirilgan Kartalar (Karta filler)
+router.get('/assigned-to-me', isKartaFiller, getAssignedKartas);
 
-// Get all Kartas (All authenticated users can view)
+// Forma60 bo'yicha Karta olish
+router.get('/forma60/:forma60Id', getKartaByForma60);
+
+// Barcha Kartalarni olish (pagination bilan)
 router.get('/', getAllKartas);
 
-// Get Kartas by Forma60 ID
-router.get('/forma60/:forma60Id', getKartasByForma60);
-
-// Create Karta with PDF upload (Karta filler only)
-router.post('/', isKartaFiller, uploadPDF, createKarta);
-
-// Create Karta from Forma60 with PDF upload (Karta filler only)
-// IMPORTANT: This route must come BEFORE /:id to avoid matching conflicts
-router.post('/from-forma60/:forma60Id', isKartaFiller, uploadPDF, createKarta);
-
-// Get single Karta
+// Bitta Kartani olish
 router.get('/:id', getKartaById);
 
-// Update Karta data manually (Karta filler)
-router.put('/:id', isKartaFiller, updateKartaData);
+// Karta yaratish (qo'lda to'ldirish)
+// IMPORTANT: Bu route /:id dan oldin bo'lishi kerak
+router.post('/create/:forma60Id', isKartaFiller, createKarta);
 
-// Verify Karta (Karta filler)
-router.post('/:id/verify', isKartaFiller, verifyKarta);
+// Kartani yangilash
+router.put('/:id', isKartaFiller, updateKarta);
 
-// Complete Karta (Karta filler)
-router.post('/:id/complete', isKartaFiller, completeKarta);
-
-// Get validation warnings
-router.get('/:id/validation-warnings', getValidationWarnings);
-
-// Download original PDF
-router.get('/:id/download-pdf', downloadPDF);
-
-// Get history
+// Karta tarixini olish
 router.get('/:id/history', getKartaHistory);
 
-// Delete (soft delete, Admin only)
+// Kartani o'chirish (soft delete, Admin only)
 router.delete('/:id', isAdmin, deleteKarta);
+
+// Kartani tiklash (Admin only)
+router.post('/:id/restore', isAdmin, restoreKarta);
+
+// Kartani versiyaga qaytarish (Karta filler, Admin)
+router.post('/:id/restore/:historyIndex', isKartaFiller, restoreKartaToVersion);
 
 module.exports = router;

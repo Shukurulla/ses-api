@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const {
   getAllDisinfections,
+  getAllDisinfectionsForMap,
   getDisinfectionById,
   createDisinfection,
+  assignToDezinfektor,
   acceptDisinfection,
   rejectDisinfection,
   startDisinfection,
@@ -43,20 +45,26 @@ router.use(protect);
 // Statistics (Admin, Dezinfektor)
 router.get('/stats', authorize('admin', 'dezinfektor'), getDisinfectionStats);
 
+// Get ALL disinfections for MAP (Admin - NO LIMIT)
+router.get('/all', authorize('admin'), getAllDisinfectionsForMap);
+
 // Get disinfections for map view (Dezinfektor - mobile)
 router.get('/map', isDezinfektor, getDisinfectionsForMap);
 
 // My disinfections (Dezinfektor)
 router.get('/my-disinfections', isDezinfektor, getMyDisinfections);
 
-// Get all disinfections (Admin)
+// Get all disinfections (Admin - WITH PAGINATION)
 router.get('/', authorize('admin', 'dezinfektor'), getAllDisinfections);
-
-// Get single disinfection
-router.get('/:id', getDisinfectionById);
 
 // Create disinfection (Admin, Forma60 filler)
 router.post('/', authorize('admin', 'forma60_filler'), createDisinfection);
+
+// Assign to dezinfektor (Admin) - MUST be before /:id routes
+router.post('/:id/assign', authorize('admin'), assignToDezinfektor);
+
+// Get single disinfection
+router.get('/:id', getDisinfectionById);
 
 // Accept disinfection (Dezinfektor)
 router.post('/:id/accept', isDezinfektor, acceptDisinfection);

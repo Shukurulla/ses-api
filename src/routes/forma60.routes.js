@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getAllForma60,
+  getAllForma60ForMap,
   getForma60ById,
   createForma60,
   updateForma60,
@@ -35,11 +36,15 @@ router.use(protect);
 // Statistics (Admin, Forma60 filler)
 router.get('/stats', authorize('admin', 'forma60_filler'), getForma60Stats);
 
+// Get ALL forma60s for MAP (Admin - NO LIMIT)
+router.get('/all', authorize('admin'), getAllForma60ForMap);
+
 // Assigned Forma60s (for Karta fillers and forma60 fillers)
 router.get('/assigned-to-me', authorize('karta_filler', 'forma60_filler'), getAssignedForma60s);
 
-// Get all Forma60s (Admin, Forma60 filler)
-router.get('/', authorize('admin', 'forma60_filler'), getAllForma60);
+// Get all Forma60s (Admin, Forma60 filler, Karta filler - WITH PAGINATION)
+// Admin panel uchun barcha rollar ko'rishi mumkin
+router.get('/', authorize('admin', 'forma60_filler', 'karta_filler'), getAllForma60);
 
 // Get single Forma60
 router.get('/:id', getForma60ById);

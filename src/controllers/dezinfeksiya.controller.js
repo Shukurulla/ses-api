@@ -1,15 +1,19 @@
-const Disinfection = require('../models/Disinfection');
-const Forma60 = require('../models/Forma60');
-const openstreetmapService = require('../services/openstreetmap.service');
-const historyTracker = require('../middlewares/historyTracker');
-const { moveTempFile, deleteUploadedFile, uploadDirs } = require('../middlewares/upload');
+const Disinfection = require("../models/Disinfection");
+const Forma60 = require("../models/Forma60");
+const openstreetmapService = require("../services/openstreetmap.service");
+const historyTracker = require("../middlewares/historyTracker");
+const {
+  moveTempFile,
+  deleteUploadedFile,
+  uploadDirs,
+} = require("../middlewares/upload");
 
 /**
  * Dezinfeksiya Controller
  * Mobile-friendly, camera integration, location tracking
  */
 
-// @desc    Barcha Dezinfeksiyalarni olish
+// @desc    Barcha Dezinfeksiyalarni olish (pagination bilan)
 // @route   GET /api/dezinfeksiya
 // @access  Private (Admin, Dezinfektor)
 exports.getAllDisinfections = async (req, res) => {
@@ -20,7 +24,7 @@ exports.getAllDisinfections = async (req, res) => {
       status,
       disinfector,
       startDate,
-      endDate
+      endDate,
     } = req.query;
 
     const filter = {};
@@ -35,16 +39,19 @@ exports.getAllDisinfections = async (req, res) => {
     }
 
     // Dezinfektor faqat o'ziga tayinlanganlarni ko'radi
-    if (req.user.role === 'dezinfektor') {
+    if (req.user.role === "dezinfektor") {
       filter.disinfector = req.user._id;
     }
 
     const skip = (page - 1) * limit;
 
     const disinfections = await Disinfection.find(filter)
-      .populate('forma60', 'fullName address workplace primaryDiagnosis')
-      .populate('disinfector', 'fullName phone')
-      .populate('acceptedBy', 'fullName')
+      .populate(
+        "forma60",
+        "fullName address workplace primaryDiagnosis disinfectionRequired"
+      )
+      .populate("disinfector", "fullName phone")
+      .populate("acceptedBy", "fullName")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -57,13 +64,44 @@ exports.getAllDisinfections = async (req, res) => {
       total: total,
       page: parseInt(page),
       pages: Math.ceil(total / limit),
-      data: disinfections
+      data: disinfections,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server xatosi',
-      error: error.message
+      message: "Server xatosi",
+      error: error.message,
+    });
+  }
+};
+
+// @desc    BARCHA Dezinfeksiyalarni olish (limit YO'Q - harita uchun)
+// @route   GET /api/dezinfeksiya/all
+// @access  Private (Admin)
+exports.getAllDisinfectionsForMap = async (req, res) => {
+  try {
+    const disinfections = await Disinfection.find({})
+      .populate(
+        "forma60",
+        "fullName address workplace primaryDiagnosis disinfectionRequired"
+      )
+      .populate("disinfector", "fullName phone")
+      .populate("acceptedBy", "fullName")
+      .sort({ createdAt: -1 });
+
+    const total = await Disinfection.countDocuments({});
+
+    res.status(200).json({
+      success: true,
+      count: disinfections.length,
+      total: total,
+      data: disinfections,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Server xatosi",
+      error: error.message,
     });
   }
 };
@@ -81,40 +119,46 @@ exports.getDisinfectionsForMap = async (req, res) => {
       filter.status = status;
     } else {
       // Faqat kutilayotgan va jarayondagilar
-      filter.status = { $in: ['kerak', 'qabul_qilindi', 'jarayonda'] };
+      filter.status = { $in: ["kerak", "qabul_qilindi", "jarayonda"] };
     }
 
     const disinfections = await Disinfection.find(filter)
-      .populate('forma60', 'fullName address workplace')
-      .select('forma60 workplace status acceptedDate scheduledDate');
+      .populate("forma60", "fullName address workplace")
+      .select("forma60 workplace status acceptedDate scheduledDate");
 
     // Map uchun format
-    const mapData = disinfections.map(d => ({
+    const mapData = disinfections.map((d) => ({
       id: d._id,
-      forma60: d.forma60 ? {
-        id: d.forma60._id,
-        fullName: d.forma60.fullName
-      } : null,
+      forma60: d.forma60
+        ? {
+            id: d.forma60._id,
+            fullName: d.forma60.fullName,
+          }
+        : null,
       workplace: d.workplace,
       status: d.status,
       scheduledDate: d.scheduledDate,
       location: d.workplace.location,
       coordinates: {
-        lat: d.workplace.lat || (d.workplace.location && d.workplace.location.coordinates[1]),
-        lon: d.workplace.lon || (d.workplace.location && d.workplace.location.coordinates[0])
-      }
+        lat:
+          d.workplace.lat ||
+          (d.workplace.location && d.workplace.location.coordinates[1]),
+        lon:
+          d.workplace.lon ||
+          (d.workplace.location && d.workplace.location.coordinates[0]),
+      },
     }));
 
     res.status(200).json({
       success: true,
       count: mapData.length,
-      data: mapData
+      data: mapData,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server xatosi',
-      error: error.message
+      message: "Server xatosi",
+      error: error.message,
     });
   }
 };
@@ -125,28 +169,28 @@ exports.getDisinfectionsForMap = async (req, res) => {
 exports.getDisinfectionById = async (req, res) => {
   try {
     const disinfection = await Disinfection.findById(req.params.id)
-      .populate('forma60')
-      .populate('disinfector', 'fullName phone email')
-      .populate('acceptedBy', 'fullName')
-      .populate('createdBy', 'fullName email')
-      .populate('editHistory.editedBy', 'fullName');
+      .populate("forma60")
+      .populate("disinfector", "fullName phone email")
+      .populate("acceptedBy", "fullName")
+      .populate("createdBy", "fullName email")
+      .populate("editHistory.editedBy", "fullName");
 
     if (!disinfection) {
       return res.status(404).json({
         success: false,
-        message: 'Dezinfeksiya topilmadi'
+        message: "Dezinfeksiya topilmadi",
       });
     }
 
     res.status(200).json({
       success: true,
-      data: disinfection
+      data: disinfection,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server xatosi',
-      error: error.message
+      message: "Server xatosi",
+      error: error.message,
     });
   }
 };
@@ -163,14 +207,14 @@ exports.createFromForma60 = async (req, res) => {
     if (!forma60) {
       return res.status(404).json({
         success: false,
-        message: 'Forma60 topilmadi'
+        message: "Forma60 topilmadi",
       });
     }
 
     if (!forma60.disinfectionRequired) {
       return res.status(400).json({
         success: false,
-        message: 'Bu Forma60 uchun dezinfeksiya kerak emas'
+        message: "Bu Forma60 uchun dezinfeksiya kerak emas",
       });
     }
 
@@ -178,37 +222,37 @@ exports.createFromForma60 = async (req, res) => {
     const disinfection = await Disinfection.create({
       forma60: forma60Id,
       workplace: forma60.workplace,
-      status: 'kerak',
+      status: "kerak",
       disinfector: forma60.disinfectionDetails?.assignedTo,
       scheduledDate: forma60.disinfectionDetails?.scheduledDate,
-      createdBy: req.user._id
+      createdBy: req.user._id,
     });
 
     // History
     disinfection.editHistory.push({
       editedBy: req.user._id,
       editedAt: new Date(),
-      action: 'created'
+      action: "created",
     });
 
     await disinfection.save();
 
     // Forma60 ni yangilash
-    forma60.disinfectionStatus = 'qilinmoqda';
+    forma60.disinfectionStatus = "qilinmoqda";
     await forma60.save();
 
-    await disinfection.populate('forma60', 'fullName workplace');
+    await disinfection.populate("forma60", "fullName workplace");
 
     res.status(201).json({
       success: true,
-      message: 'Dezinfeksiya muvaffaqiyatli yaratildi',
-      data: disinfection
+      message: "Dezinfeksiya muvaffaqiyatli yaratildi",
+      data: disinfection,
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: 'Dezinfeksiya yaratishda xatolik',
-      error: error.message
+      message: "Dezinfeksiya yaratishda xatolik",
+      error: error.message,
     });
   }
 };
@@ -223,18 +267,18 @@ exports.acceptDisinfection = async (req, res) => {
     if (!disinfection) {
       return res.status(404).json({
         success: false,
-        message: 'Dezinfeksiya topilmadi'
+        message: "Dezinfeksiya topilmadi",
       });
     }
 
-    if (disinfection.status !== 'kerak') {
+    if (disinfection.status !== "kerak") {
       return res.status(400).json({
         success: false,
-        message: 'Bu dezinfeksiya allaqachon qabul qilingan'
+        message: "Bu dezinfeksiya allaqachon qabul qilingan",
       });
     }
 
-    disinfection.status = 'qabul_qilindi';
+    disinfection.status = "qabul_qilindi";
     disinfection.acceptedDate = new Date();
     disinfection.acceptedBy = req.user._id;
     disinfection.disinfector = req.user._id;
@@ -244,14 +288,14 @@ exports.acceptDisinfection = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Dezinfeksiya muvaffaqiyatli qabul qilindi',
-      data: disinfection
+      message: "Dezinfeksiya muvaffaqiyatli qabul qilindi",
+      data: disinfection,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Qabul qilishda xatolik',
-      error: error.message
+      message: "Qabul qilishda xatolik",
+      error: error.message,
     });
   }
 };
@@ -261,65 +305,37 @@ exports.acceptDisinfection = async (req, res) => {
 // @access  Private (Dezinfektor)
 exports.startDisinfection = async (req, res) => {
   try {
-    const { currentLocation } = req.body; // { lat, lon, accuracy }
-
     const disinfection = await Disinfection.findById(req.params.id);
 
     if (!disinfection) {
       return res.status(404).json({
         success: false,
-        message: 'Dezinfeksiya topilmadi'
+        message: "Dezinfeksiya topilmadi",
       });
     }
 
-    if (disinfection.status !== 'qabul_qilindi') {
+    if (disinfection.status !== "qabul_qilindi") {
       return res.status(400).json({
         success: false,
-        message: 'Avval dezinfeksiyani qabul qiling'
+        message: "Avval dezinfeksiyani qabul qiling",
       });
     }
 
-    // Location tekshirish
-    const targetLat = disinfection.workplace.lat || disinfection.workplace.location.coordinates[1];
-    const targetLon = disinfection.workplace.lon || disinfection.workplace.location.coordinates[0];
-
-    const arrivalCheck = openstreetmapService.checkArrival(
-      targetLat,
-      targetLon,
-      currentLocation.lat,
-      currentLocation.lon,
-      100 // 100 metr threshold
-    );
-
-    if (!arrivalCheck.arrived) {
-      return res.status(400).json({
-        success: false,
-        message: `Siz belgilangan joydan ${arrivalCheck.distance.toFixed(0)}m uzoqdasiz. Iltimos joyga yaqinlashing.`,
-        distance: arrivalCheck.distance
-      });
-    }
-
-    disinfection.status = 'jarayonda';
-    disinfection.actualLocation = {
-      lat: currentLocation.lat,
-      lon: currentLocation.lon,
-      accuracy: currentLocation.accuracy,
-      timestamp: new Date()
-    };
+    disinfection.status = "jarayonda";
     disinfection.updatedBy = req.user._id;
 
     await disinfection.save();
 
     res.status(200).json({
       success: true,
-      message: 'Dezinfeksiya boshlandi',
-      data: disinfection
+      message: "Dezinfeksiya boshlandi",
+      data: disinfection,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Boshlashda xatolik',
-      error: error.message
+      message: "Boshlashda xatolik",
+      error: error.message,
     });
   }
 };
@@ -332,7 +348,7 @@ exports.uploadBeforePhotos = async (req, res) => {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Rasm yuklanmagan'
+        message: "Rasm yuklanmagan",
       });
     }
 
@@ -340,16 +356,16 @@ exports.uploadBeforePhotos = async (req, res) => {
 
     if (!disinfection) {
       // Rasmlarni o'chirish
-      req.files.forEach(file => deleteUploadedFile(file.path));
+      req.files.forEach((file) => deleteUploadedFile(file.path));
 
       return res.status(404).json({
         success: false,
-        message: 'Dezinfeksiya topilmadi'
+        message: "Dezinfeksiya topilmadi",
       });
     }
 
     // Rasmlarni saqlash
-    const photos = req.files.map(file => {
+    const photos = req.files.map((file) => {
       // Temp dan permanent ga ko'chirish
       const permanentPath = moveTempFile(file.path, uploadDirs.images);
 
@@ -358,7 +374,7 @@ exports.uploadBeforePhotos = async (req, res) => {
         path: permanentPath || file.path,
         mimetype: file.mimetype,
         size: file.size,
-        location: req.body.location ? JSON.parse(req.body.location) : {}
+        location: req.body.location ? JSON.parse(req.body.location) : {},
       };
     });
 
@@ -372,14 +388,14 @@ exports.uploadBeforePhotos = async (req, res) => {
       message: `${photos.length} ta rasm muvaffaqiyatli yuklandi`,
       data: {
         uploadedCount: photos.length,
-        photos: photos
-      }
+        photos: photos,
+      },
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Rasm yuklashda xatolik',
-      error: error.message
+      message: "Rasm yuklashda xatolik",
+      error: error.message,
     });
   }
 };
@@ -392,22 +408,22 @@ exports.uploadAfterPhotos = async (req, res) => {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Rasm yuklanmagan'
+        message: "Rasm yuklanmagan",
       });
     }
 
     const disinfection = await Disinfection.findById(req.params.id);
 
     if (!disinfection) {
-      req.files.forEach(file => deleteUploadedFile(file.path));
+      req.files.forEach((file) => deleteUploadedFile(file.path));
 
       return res.status(404).json({
         success: false,
-        message: 'Dezinfeksiya topilmadi'
+        message: "Dezinfeksiya topilmadi",
       });
     }
 
-    const photos = req.files.map(file => {
+    const photos = req.files.map((file) => {
       const permanentPath = moveTempFile(file.path, uploadDirs.images);
 
       return {
@@ -415,7 +431,7 @@ exports.uploadAfterPhotos = async (req, res) => {
         path: permanentPath || file.path,
         mimetype: file.mimetype,
         size: file.size,
-        location: req.body.location ? JSON.parse(req.body.location) : {}
+        location: req.body.location ? JSON.parse(req.body.location) : {},
       };
     });
 
@@ -429,14 +445,14 @@ exports.uploadAfterPhotos = async (req, res) => {
       message: `${photos.length} ta rasm muvaffaqiyatli yuklandi`,
       data: {
         uploadedCount: photos.length,
-        photos: photos
-      }
+        photos: photos,
+      },
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Rasm yuklashda xatolik',
-      error: error.message
+      message: "Rasm yuklashda xatolik",
+      error: error.message,
     });
   }
 };
@@ -453,14 +469,14 @@ exports.completeDisinfection = async (req, res) => {
     if (!disinfection) {
       return res.status(404).json({
         success: false,
-        message: 'Dezinfeksiya topilmadi'
+        message: "Dezinfeksiya topilmadi",
       });
     }
 
-    if (disinfection.status !== 'jarayonda') {
+    if (disinfection.status !== "jarayonda") {
       return res.status(400).json({
         success: false,
-        message: 'Dezinfeksiya jarayonda emas'
+        message: "Dezinfeksiya jarayonda emas",
       });
     }
 
@@ -468,18 +484,18 @@ exports.completeDisinfection = async (req, res) => {
     if (disinfection.photoBefore.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Avval "oldin" rasmlarni yuklang'
+        message: 'Avval "oldin" rasmlarni yuklang',
       });
     }
 
     if (disinfection.photoAfter.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Avval "keyin" rasmlarni yuklang'
+        message: 'Avval "keyin" rasmlarni yuklang',
       });
     }
 
-    disinfection.status = 'qilindi';
+    disinfection.status = "qilindi";
     disinfection.completedDate = new Date();
     disinfection.disinfectionType = disinfectionType;
     disinfection.chemicals = chemicals;
@@ -496,9 +512,9 @@ exports.completeDisinfection = async (req, res) => {
       const oldStatus = forma60.status;
       const oldDisinfectionStatus = forma60.disinfectionStatus;
 
-      forma60.disinfectionStatus = 'qilindi';
+      forma60.disinfectionStatus = "qilindi";
       forma60.disinfectionDetails.completedDate = new Date();
-      forma60.status = 'tugatilgan'; // Forma60 ni tugatilgan holatiga o'tkazish
+      forma60.status = "tugatilgan"; // Forma60 ni tugatilgan holatiga o'tkazish
       forma60.updatedBy = req.user._id;
 
       // editHistory ga qo'shish
@@ -509,9 +525,12 @@ exports.completeDisinfection = async (req, res) => {
       forma60.editHistory.push({
         editedBy: req.user._id,
         editedAt: new Date(),
-        changes: { status: 'tugatilgan', disinfectionStatus: 'qilindi' },
-        previousData: { status: oldStatus, disinfectionStatus: oldDisinfectionStatus },
-        action: 'updated'
+        changes: { status: "tugatilgan", disinfectionStatus: "qilindi" },
+        previousData: {
+          status: oldStatus,
+          disinfectionStatus: oldDisinfectionStatus,
+        },
+        action: "updated",
       });
 
       await forma60.save();
@@ -519,14 +538,14 @@ exports.completeDisinfection = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Dezinfeksiya muvaffaqiyatli yakunlandi',
-      data: disinfection
+      message: "Dezinfeksiya muvaffaqiyatli yakunlandi",
+      data: disinfection,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Yakunlashda xatolik',
-      error: error.message
+      message: "Yakunlashda xatolik",
+      error: error.message,
     });
   }
 };
@@ -541,7 +560,7 @@ exports.cancelDisinfection = async (req, res) => {
     if (!reason) {
       return res.status(400).json({
         success: false,
-        message: 'Bekor qilish sababi ko\'rsatilishi kerak'
+        message: "Bekor qilish sababi ko'rsatilishi kerak",
       });
     }
 
@@ -550,16 +569,16 @@ exports.cancelDisinfection = async (req, res) => {
     if (!disinfection) {
       return res.status(404).json({
         success: false,
-        message: 'Dezinfeksiya topilmadi'
+        message: "Dezinfeksiya topilmadi",
       });
     }
 
-    disinfection.status = 'bekor_qilindi';
+    disinfection.status = "bekor_qilindi";
     disinfection.cancellationInfo = {
       reason: reason,
       rejectedBy: rejectedBy,
       cancellationDate: new Date(),
-      notes: notes
+      notes: notes,
     };
     disinfection.updatedBy = req.user._id;
 
@@ -568,20 +587,20 @@ exports.cancelDisinfection = async (req, res) => {
     // Forma60 ni yangilash
     const forma60 = await Forma60.findById(disinfection.forma60);
     if (forma60) {
-      forma60.disinfectionStatus = 'bekor qilindi';
+      forma60.disinfectionStatus = "bekor qilindi";
       await forma60.save();
     }
 
     res.status(200).json({
       success: true,
-      message: 'Dezinfeksiya bekor qilindi',
-      data: disinfection
+      message: "Dezinfeksiya bekor qilindi",
+      data: disinfection,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Bekor qilishda xatolik',
-      error: error.message
+      message: "Bekor qilishda xatolik",
+      error: error.message,
     });
   }
 };
@@ -591,32 +610,36 @@ exports.cancelDisinfection = async (req, res) => {
 // @access  Private
 exports.getDisinfectionStats = async (req, res) => {
   try {
-    const filter = req.user.role === 'dezinfektor' ? { disinfector: req.user._id } : {};
+    const filter =
+      req.user.role === "dezinfektor" ? { disinfector: req.user._id } : {};
 
     const stats = await Disinfection.aggregate([
       { $match: { ...filter, isDeleted: false } },
       {
         $group: {
-          _id: '$status',
-          count: { $sum: 1 }
-        }
-      }
+          _id: "$status",
+          count: { $sum: 1 },
+        },
+      },
     ]);
 
-    const total = await Disinfection.countDocuments({ ...filter, isDeleted: false });
+    const total = await Disinfection.countDocuments({
+      ...filter,
+      isDeleted: false,
+    });
 
     res.status(200).json({
       success: true,
       data: {
         total: total,
-        byStatus: stats
-      }
+        byStatus: stats,
+      },
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Statistika olishda xatolik',
-      error: error.message
+      message: "Statistika olishda xatolik",
+      error: error.message,
     });
   }
 };
@@ -625,12 +648,64 @@ module.exports = exports;
 
 // Missing functions
 exports.createDisinfection = exports.createFromForma60;
+
+// @desc    Dezinfektorga tayinlash (Admin tomonidan)
+// @route   POST /api/dezinfeksiya/:id/assign
+// @access  Private (Admin)
+exports.assignToDezinfektor = async (req, res) => {
+  try {
+    const { dezinfektorId } = req.body;
+
+    if (!dezinfektorId) {
+      return res.status(400).json({
+        success: false,
+        message: "Dezinfektor ID kiritilishi shart",
+      });
+    }
+
+    const disinfection = await Disinfection.findByIdAndUpdate(
+      req.params.id,
+      {
+        disinfector: dezinfektorId,
+        assignedDate: new Date(),
+        status: "qabul_qilindi",
+        acceptedBy: dezinfektorId,
+        acceptedDate: new Date(),
+      },
+      { new: true }
+    )
+      .populate("disinfector", "fullName username phone")
+      .populate("forma60", "fullName address primaryDiagnosis");
+
+    if (!disinfection) {
+      return res.status(404).json({
+        success: false,
+        message: "Dezinfeksiya topilmadi",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: disinfection,
+      message: "Dezinfektor muvaffaqiyatli tayinlandi",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+};
+
 exports.rejectDisinfection = async (req, res) => {
   try {
     const { reason } = req.body;
     const disinfection = await Disinfection.findByIdAndUpdate(
       req.params.id,
-      { status: "bekor_qilindi", cancellationInfo: { reason, rejectedBy: req.user._id } },
+      {
+        status: "bekor_qilindi",
+        cancellationInfo: { reason, rejectedBy: req.user._id },
+      },
       { new: true }
     );
     res.status(200).json({ success: true, data: disinfection });
@@ -644,9 +719,20 @@ exports.getDisinfectionHistory = async (req, res) => {
 };
 exports.getMyDisinfections = async (req, res) => {
   try {
-    const data = await Disinfection.find({ assignedToDezinfektor: req.user._id });
+    console.log("getMyDisinfections - User ID:", req.user._id);
+    console.log("getMyDisinfections - User role:", req.user.role);
+
+    const data = await Disinfection.find({ disinfector: req.user._id })
+      .populate("forma60", "fullName finalDiagnosis address")
+      .populate("workplace", "name address location")
+      .populate("disinfector", "fullName")
+      .sort({ createdAt: -1 });
+
+    console.log("getMyDisinfections - Found:", data.length, "disinfections");
+
     res.status(200).json({ success: true, data });
   } catch (error) {
+    console.error("getMyDisinfections error:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -658,4 +744,3 @@ exports.deleteDisinfection = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
-

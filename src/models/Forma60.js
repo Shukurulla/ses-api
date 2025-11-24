@@ -87,20 +87,19 @@ const forma60Schema = new mongoose.Schema({
   // 11. Aloqada bo'lgan shaxslar (eski - endi ishlatilmaydi, lekin compatibility uchun qoldirilgan)
   contactedPersons: [contactPersonSchema],
 
-  // 11.1 PDF dan olingan kontaktlar va ularning holati
+  // 11.1 Kontaktlar va ularning holati
   contactsStatus: [{
-    name: String, // PDF dan olingan FIO
-    age: Number, // PDF dan olingan yosh
-    address: String, // PDF dan olingan manzil
-    workCharacter: String, // PDF dan - ish xarakteri
-    workLocation: String, // PDF dan - ish joyi
+    name: String, // F.I.Sh
+    birthDate: Date, // Tug'ilgan sanasi
+    relationshipDegree: String, // Qarindoshlik darajasi
+    workOrStudyPlace: String, // Ish yoki o'qish joyi
+    notificationReceivedBy: String, // Xabarnoma kim qabul qilgan
     diseaseStatus: {
       type: String,
-      enum: ['pending', 'disease_found', 'no_disease'],
-      default: 'pending'
+      enum: ['tekshirilmagan', 'soglom', 'kasal'],
+      default: 'tekshirilmagan'
     },
-    checkedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    checkedAt: Date,
+    diagnosisDate: Date, // Tashxis qo'yilgan sanasi
     notes: String // Qo'shimcha eslatmalar
   }],
 
@@ -124,12 +123,11 @@ const forma60Schema = new mongoose.Schema({
   infectionSource: {
     type: String,
     enum: [
-      'Turar joyida',
-      'Ish joyida',
-      'Talim muassasasida',
-      'Sayohat paytida',
-      'Jamoat joyida',
-      'Noma\'lum',
+      'Uyda',
+      'MTT',
+      'Maktab',
+      'DPM',
+      'Umumiy ovqatlanish korxonalari',
       'Boshqa'
     ]
   },
@@ -365,6 +363,32 @@ forma60Schema.pre(/^find/, function(next) {
 
 forma60Schema.pre('countDocuments', function(next) {
   this.where({ isDeleted: false });
+  next();
+});
+
+// deleteOne va deleteMany ni soft delete ga o'tkazish
+forma60Schema.pre('deleteOne', { document: false, query: true }, async function(next) {
+  const docToDelete = await this.model.findOne(this.getFilter());
+  if (docToDelete) {
+    this.setUpdate({
+      $set: {
+        isDeleted: true,
+        deletedAt: new Date()
+      }
+    });
+    next();
+  } else {
+    next();
+  }
+});
+
+forma60Schema.pre('deleteMany', { document: false, query: true }, async function(next) {
+  this.setUpdate({
+    $set: {
+      isDeleted: true,
+      deletedAt: new Date()
+    }
+  });
   next();
 });
 
