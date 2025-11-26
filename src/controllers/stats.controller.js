@@ -1,6 +1,7 @@
 const Forma60 = require('../models/Forma60');
 const Karta = require('../models/Karta');
 const User = require('../models/User');
+const Disinfection = require('../models/Disinfection');
 
 /**
  * Stats Controller
@@ -113,7 +114,8 @@ exports.getDashboardStats = async (req, res) => {
           changePercent: parseFloat(kartaChangePercent)
         },
         disinfection: {
-          total: 0, // Hozircha 0
+          total: await Disinfection.countDocuments({ isDeleted: { $ne: true } }),
+          completed: await Disinfection.countDocuments({ status: 'qilindi', isDeleted: { $ne: true } }),
           changePercent: 0
         },
         diseases: {
@@ -367,12 +369,31 @@ exports.getForma60ByDiagnosis = async (req, res) => {
 // @access  Private
 exports.getDisinfectionsByStatus = async (req, res) => {
   try {
-    // Hozircha Dezinfeksiya modeli yo'q, shuning uchun placeholder
-    const result = [
-      { status: 'Bajarildi', count: 0 },
-      { status: 'Jarayonda', count: 0 },
-      { status: 'Rejalashtirilgan', count: 0 }
-    ];
+    const Disinfection = require('../models/Disinfection');
+
+    const stats = await Disinfection.aggregate([
+      { $match: { isDeleted: { $ne: true } } },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } }
+    ]);
+
+    const statusNames = {
+      'kerak': 'Kerak',
+      'qabul_qilindi': 'Qabul qilindi',
+      'jarayonda': 'Jarayonda',
+      'qilindi': 'Bajarildi',
+      'bekor_qilindi': 'Bekor qilindi'
+    };
+
+    const result = stats.map(s => ({
+      status: statusNames[s._id] || s._id,
+      count: s.count
+    }));
 
     res.status(200).json({
       success: true,

@@ -1,6 +1,8 @@
 const Forma60 = require('../models/Forma60');
 const District = require('../models/District');
 const User = require('../models/User');
+const mongoose = require('mongoose');
+const { ObjectId } = require('mongodb'); // Native driver ObjectId
 const openstreetmapService = require('../services/openstreetmap.service');
 const historyTracker = require('../middlewares/historyTracker');
 
@@ -19,24 +21,52 @@ exports.getAllForma60 = async (req, res) => {
       limit = 20,
       status,
       district,
+      mahalla, // yangi
       disinfectionStatus,
       assignedToCardFiller,
       createdBy,
       startDate,
       endDate,
-      search
+      search,
+      diagnosis,
+      // Advanced filters
+      referralType, // Qayerdan keldi (Infeksiya, Bolnitsa, Ekstren, Poliklinika)
+      referralClinic, // Poliklinika nomi (agar Poliklinika tanlangan bo'lsa)
+      ageFrom,
+      ageTo,
+      illnessDateFrom,
+      illnessDateTo,
+      contactDateFrom,
+      contactDateTo,
+      hospitalizationDateFrom,
+      hospitalizationDateTo,
+      disinfectionRequired,
+      createdAtFrom,
+      createdAtTo
     } = req.query;
 
     // Filter yaratish
-    const filter = {};
+    const filter = { isDeleted: { $ne: true } };
 
     if (status) filter.status = status;
-    if (district) filter['address.mahalla'] = district;
+    if (district) {
+      filter['address.mahalla'] = mongoose.Types.ObjectId.isValid(district)
+        ? new mongoose.Types.ObjectId(district)
+        : district;
+    }
+    if (mahalla) {
+      // Native MongoDB ObjectId ishlatish
+      if (ObjectId.isValid(mahalla)) {
+        filter['address.mahalla'] = new ObjectId(mahalla);
+      } else {
+        filter['address.mahalla'] = mahalla;
+      }
+    }
     if (disinfectionStatus) filter.disinfectionStatus = disinfectionStatus;
     if (assignedToCardFiller) filter.assignedToCardFiller = assignedToCardFiller;
     if (createdBy) filter.createdBy = createdBy;
 
-    // Sana bo'yicha filter
+    // Sana bo'yicha filter (eski - createdAt uchun)
     if (startDate || endDate) {
       filter.createdAt = {};
       if (startDate) filter.createdAt.$gte = new Date(startDate);
@@ -46,6 +76,63 @@ exports.getAllForma60 = async (req, res) => {
     // Search (ism bo'yicha)
     if (search) {
       filter.fullName = { $regex: search, $options: 'i' };
+    }
+
+    // Tashxis bo'yicha filter
+    if (diagnosis) {
+      filter.primaryDiagnosis = { $regex: diagnosis, $options: 'i' };
+    }
+
+    // === Advanced filters ===
+
+    // Qayerdan keldi (referralType) - Infeksiya, Bolnitsa, Ekstren, Poliklinika
+    if (referralType) {
+      filter.referralType = referralType;
+    }
+
+    // Poliklinika nomi (referralClinic) - faqat Poliklinika tanlanganda
+    if (referralClinic) {
+      filter['referralClinic.institution_name'] = { $regex: referralClinic, $options: 'i' };
+    }
+
+    // Yosh bo'yicha filter
+    if (ageFrom || ageTo) {
+      filter.age = {};
+      if (ageFrom) filter.age.$gte = parseInt(ageFrom);
+      if (ageTo) filter.age.$lte = parseInt(ageTo);
+    }
+
+    // Kasallanish sanasi bo'yicha filter
+    if (illnessDateFrom || illnessDateTo) {
+      filter.illnessDate = {};
+      if (illnessDateFrom) filter.illnessDate.$gte = new Date(illnessDateFrom);
+      if (illnessDateTo) filter.illnessDate.$lte = new Date(illnessDateTo);
+    }
+
+    // Murojaat sanasi bo'yicha filter
+    if (contactDateFrom || contactDateTo) {
+      filter.contactDate = {};
+      if (contactDateFrom) filter.contactDate.$gte = new Date(contactDateFrom);
+      if (contactDateTo) filter.contactDate.$lte = new Date(contactDateTo);
+    }
+
+    // Gospitalizatsiya sanasi bo'yicha filter
+    if (hospitalizationDateFrom || hospitalizationDateTo) {
+      filter.hospitalizationDate = {};
+      if (hospitalizationDateFrom) filter.hospitalizationDate.$gte = new Date(hospitalizationDateFrom);
+      if (hospitalizationDateTo) filter.hospitalizationDate.$lte = new Date(hospitalizationDateTo);
+    }
+
+    // Dezinfeksiya kerakligi bo'yicha filter
+    if (disinfectionRequired !== undefined && disinfectionRequired !== '') {
+      filter.disinfectionRequired = disinfectionRequired === 'true';
+    }
+
+    // Yaratilgan sana bo'yicha filter (yangi)
+    if (createdAtFrom || createdAtTo) {
+      if (!filter.createdAt) filter.createdAt = {};
+      if (createdAtFrom) filter.createdAt.$gte = new Date(createdAtFrom);
+      if (createdAtTo) filter.createdAt.$lte = new Date(createdAtTo);
     }
 
     // Pagination
@@ -68,6 +155,7 @@ exports.getAllForma60 = async (req, res) => {
       total: total,
       page: parseInt(page),
       pages: Math.ceil(total / limit),
+      limit: parseInt(limit),
       data: forma60s
     });
   } catch (error) {

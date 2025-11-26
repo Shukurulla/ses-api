@@ -3,7 +3,7 @@ const User = require('../models/User');
 
 /**
  * Authentication & Authorization Middleware
- * Roles: admin, forma60_filler, karta_filler, dezinfektor, epidemiolog, laborant, shifokor, statistik
+ * Roles: admin, forma60_filler, karta_filler, dezinfektor, vrach_assistant, food_inspector
  */
 
 // Token tekshirish (protect bilan bir xil)

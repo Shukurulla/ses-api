@@ -1,4 +1,5 @@
 const Forma60 = require('../models/Forma60');
+const mongoose = require('mongoose');
 
 /**
  * Map Controller
@@ -14,10 +15,31 @@ exports.getDiseasesMap = async (req, res) => {
       diseaseType, // salmonellyoz, ich_burug, oyuik
       startDate,
       endDate,
-      bounds // Map bounds: minLat,minLng,maxLat,maxLng
+      bounds, // Map bounds: minLat,minLng,maxLat,maxLng
+      // Advanced filters
+      referralType, // Qayerdan keldi (Infeksiya, Bolnitsa, Ekstren, Poliklinika)
+      referralClinic, // Poliklinika nomi
+      mahalla,
+      ageFrom,
+      ageTo,
+      diagnosis,
+      status,
+      illnessDateFrom,
+      illnessDateTo,
+      contactDateFrom,
+      contactDateTo,
+      hospitalizationDateFrom,
+      hospitalizationDateTo,
+      hasKarta,
+      kartaStatus,
+      disinfectionRequired,
+      createdAtFrom,
+      createdAtTo
     } = req.query;
 
-    const filter = {};
+    const filter = {
+      isDeleted: { $ne: true }
+    };
 
     // Faqat geolokatsiyasi bo'lgan holatlar
     filter['address.location.coordinates'] = { $exists: true, $ne: [] };
@@ -37,11 +59,80 @@ exports.getDiseasesMap = async (req, res) => {
       }
     }
 
-    // Sana bo'yicha filter
+    // Sana bo'yicha filter (eski usul - startDate/endDate)
     if (startDate || endDate) {
       filter.illnessDate = {};
       if (startDate) filter.illnessDate.$gte = new Date(startDate);
       if (endDate) filter.illnessDate.$lte = new Date(endDate);
+    }
+
+    // === ADVANCED FILTERS ===
+
+    // Mahalla filter (ObjectId ga o'girish)
+    if (mahalla) {
+      filter['address.mahalla'] = mongoose.Types.ObjectId.isValid(mahalla)
+        ? new mongoose.Types.ObjectId(mahalla)
+        : mahalla;
+    }
+
+    // ReferralType filter (Qayerdan keldi)
+    if (referralType) {
+      filter.referralType = referralType;
+    }
+
+    // ReferralClinic filter (Poliklinika nomi)
+    if (referralClinic) {
+      filter['referralClinic.institution_name'] = { $regex: referralClinic, $options: 'i' };
+    }
+
+    // Age filter
+    if (ageFrom || ageTo) {
+      filter.age = {};
+      if (ageFrom) filter.age.$gte = parseInt(ageFrom);
+      if (ageTo) filter.age.$lte = parseInt(ageTo);
+    }
+
+    // Diagnosis filter (free text search)
+    if (diagnosis) {
+      filter.primaryDiagnosis = { $regex: diagnosis, $options: 'i' };
+    }
+
+    // Status filter
+    if (status && status !== 'all') {
+      filter.status = status;
+    }
+
+    // Illness date filter (advanced)
+    if (illnessDateFrom || illnessDateTo) {
+      filter.illnessDate = filter.illnessDate || {};
+      if (illnessDateFrom) filter.illnessDate.$gte = new Date(illnessDateFrom);
+      if (illnessDateTo) filter.illnessDate.$lte = new Date(illnessDateTo);
+    }
+
+    // Contact date filter
+    if (contactDateFrom || contactDateTo) {
+      filter.contactDate = {};
+      if (contactDateFrom) filter.contactDate.$gte = new Date(contactDateFrom);
+      if (contactDateTo) filter.contactDate.$lte = new Date(contactDateTo);
+    }
+
+    // Hospitalization date filter
+    if (hospitalizationDateFrom || hospitalizationDateTo) {
+      filter.hospitalizationDate = {};
+      if (hospitalizationDateFrom) filter.hospitalizationDate.$gte = new Date(hospitalizationDateFrom);
+      if (hospitalizationDateTo) filter.hospitalizationDate.$lte = new Date(hospitalizationDateTo);
+    }
+
+    // Disinfection required filter
+    if (disinfectionRequired) {
+      filter.disinfectionRequired = disinfectionRequired === 'true' || disinfectionRequired === 'kerak';
+    }
+
+    // Created at filter
+    if (createdAtFrom || createdAtTo) {
+      filter.createdAt = {};
+      if (createdAtFrom) filter.createdAt.$gte = new Date(createdAtFrom);
+      if (createdAtTo) filter.createdAt.$lte = new Date(createdAtTo);
     }
 
     // Map bounds bo'yicha filter (viewport optimization)
@@ -57,7 +148,36 @@ exports.getDiseasesMap = async (req, res) => {
       };
     }
 
-    const cases = await Forma60.find(filter)
+    // Base query
+    let query = Forma60.find(filter);
+
+    // Has Karta filter - requires lookup
+    if (hasKarta === 'true' || hasKarta === 'false' || kartaStatus) {
+      const Karta = require('../models/Karta');
+
+      // Get forma60 IDs that have karta
+      const kartaFilter = {};
+      if (kartaStatus) {
+        kartaFilter.status = kartaStatus;
+      }
+
+      const kartasWithForma60 = await Karta.find(kartaFilter).select('forma60').lean();
+      const forma60IdsWithKarta = kartasWithForma60.map(k => k.forma60);
+
+      if (hasKarta === 'true') {
+        filter._id = { $in: forma60IdsWithKarta };
+      } else if (hasKarta === 'false') {
+        filter._id = { $nin: forma60IdsWithKarta };
+      } else if (kartaStatus) {
+        // Karta status filter implies hasKarta = true
+        filter._id = { $in: forma60IdsWithKarta };
+      }
+
+      // Re-create query with updated filter
+      query = Forma60.find(filter);
+    }
+
+    const cases = await query
       .select('formNumber fullName age primaryDiagnosis finalDiagnosis illnessDate address.location address.fullAddress outcome')
       .limit(1000) // Performance uchun limit
       .lean();
